@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   const ts = req.headers.get("x-signature-timestamp") || "";
   const sig = req.headers.get("x-signature") || "";
 
-  let body: any = {};
+  let body: Record<string, unknown> = {};
   try {
     body = await req.json();
   } catch {
