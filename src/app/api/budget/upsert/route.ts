@@ -20,7 +20,6 @@ export async function POST(req: NextRequest) {
   const sb = admin();
   const daily_cents = Math.round(daily * 100);
 
-  // one active budget per user for MVP
   await sb.from("budgets").delete().eq("user_id", userId);
   const { data, error } = await sb.from("budgets")
     .insert({ user_id: userId, daily_allowance_cents: daily_cents, start_date: start, currency_code: currency })
@@ -28,7 +27,6 @@ export async function POST(req: NextRequest) {
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // also store currency on the user, if not set
   await sb.from("users").update({ currency_code: currency }).eq("id", userId);
 
   return NextResponse.json({ ok: true, budget: data });
