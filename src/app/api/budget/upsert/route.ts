@@ -1,15 +1,26 @@
+// src/app/api/budget/upsert/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { admin } from "@/lib/supabase";
 import { ensureUser, readUserFromHeaders } from "@/app/api/_util/user";
 
+export const dynamic = "force-dynamic"; // ensure edge/cache doesn't interfere
+
 export async function POST(req: NextRequest) {
   const { id: userId, email } = readUserFromHeaders(req.headers);
-  if (!userId) return NextResponse.json({ error: "Missing user" }, { status: 401 });
+  if (!userId) {
+    return NextResponse.json({ error: "Missing user" }, { status: 401 });
+  }
 
-  const body = await req.json();
-  const daily = Number(body?.daily_allowance_dollars);
-  const start = String(body?.start_date || "");
-  const currency = (body?.currency_code || "USD").toUpperCase();
+  let body: Record<string, unknown> = {};
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const daily = Number(body?.["daily_allowance_dollars"]);
+  const start = String(body?.["start_date"] || "");
+  const currency = String((body?.["currency_code"] || "USD")).toUpperCase();
 
   if (!Number.isFinite(daily) || !start) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
@@ -20,14 +31,31 @@ export async function POST(req: NextRequest) {
   const sb = admin();
   const daily_cents = Math.round(daily * 100);
 
+  // one active budget per user for MVP
   await sb.from("budgets").delete().eq("user_id", userId);
-  const { data, error } = await sb.from("budgets")
-    .insert({ user_id: userId, daily_allowance_cents: daily_cents, start_date: start, currency_code: currency })
+
+  const { data, error } = await sb
+    .from("budgets")
+    .insert({
+      user_id: userId,
+      daily_allowance_cents: daily_cents,
+      start_date: start,
+      currency_code: currency,
+    })
     .select()
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // keep user currency in sync
   await sb.from("users").update({ currency_code: currency }).eq("id", userId);
 
-  return NextResponse.json({ ok: true, budget: data });
+  return NextResponse.json({ ok: true, budget: data }, { status: 200 });
+}
+
+// Optional: make it explicit that GET isn't supported (helps local testing)
+export async function GET() {
+  return NextResponse.json({ error: "Use POST" }, { status: 405 });
 }
