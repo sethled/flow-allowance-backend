@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     // allow empty body
   }
 
-  if (!userId || !ts || !sig) {
+  if (!ts || !sig) {
     return NextResponse.json({ error: "Missing signature headers" }, { status: 401 });
   }
 
